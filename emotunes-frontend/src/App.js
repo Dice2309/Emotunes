@@ -3,10 +3,20 @@ import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-d
 import Register from './Register';
 import Login from './Login';
 import Welcome from './Welcome';
+import EmotionInput from './EmotionInput';
 import './App.css';
 
 function App() {
   const [user, setUser] = useState(null);
+
+  // Log to console and localStorage
+  const logMessage = (message) => {
+    console.log(message);
+    const currentLogs = localStorage.getItem('emotunesLogs') || '';
+    localStorage.setItem('emotunesLogs', currentLogs + `${new Date().toISOString()} - ${message}\n`);
+  };
+
+  logMessage('App rendered, user: ' + JSON.stringify(user));
 
   return (
     <Router>
@@ -17,6 +27,7 @@ function App() {
           <Route path="/register" element={<Register setUser={setUser} />} />
           <Route path="/login" element={<Login setUser={setUser} />} />
           <Route path="/welcome" element={user ? <Welcome user={user} /> : <Navigate to="/login" />} />
+          <Route path="/emotion" element={user ? <EmotionInput user={user} /> : <Navigate to="/login" />} />
           <Route path="/" element={<Navigate to="/login" />} />
         </Routes>
       </div>

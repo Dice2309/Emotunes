@@ -16,7 +16,11 @@ function Login({ setUser }) {
     });
     const data = await response.json();
     if (response.ok) {
-      setUser({ name: data.name });
+      const userData = { name: data.name, email };
+      console.log('Setting user:', userData);
+      const currentLogs = localStorage.getItem('emotunesLogs') || '';
+      localStorage.setItem('emotunesLogs', currentLogs + `${new Date().toISOString()} - Setting user: ${JSON.stringify(userData)}\n`);
+      setUser(userData);
       navigate('/welcome');
     } else {
       alert(data.error);

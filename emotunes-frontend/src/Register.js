@@ -17,8 +17,9 @@ function Register({ setUser }) {
     });
     const data = await response.json();
     if (response.ok) {
-      setUser({ name });
-      navigate('/welcome');
+      // Don’t setUser here—let user log in manually
+      alert('Registration successful! Please log in.');
+      navigate('/login'); // Redirect to login instead of welcome
     } else {
       alert(data.error);
     }
