@@ -21,6 +21,7 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   name: String,
   emotions: [{ emotion: String, timestamp: Date }],
+  history: [{ emotion: String, songs: [{ title: String, artist: String, url: String }], timestamp: Date }]
 });
 const User = mongoose.model('User', userSchema);
 
@@ -110,22 +111,43 @@ app.post('/detect-emotion', upload.single('image'), async (req, res) => {
 });
 
 app.post('/recommend', async (req, res) => {
-  const { emotion } = req.body;
-  const spotifyToken = 'BQA5GBw4UBowMeIV0G7TMcAuzJZb_x3-nkVknIagtsj9kMx0nraME97ybEkipe6w9zEIUT4-PpEEnshOQR1_Q3_ogIUvForDEgGrc8Q6X4kMjlO-qsVs3aYLFE1y0VgGgqw36JUsHm7oIU5VQ2j-8FeAOHF7m-9aEapchz_Xy2AUyfHTs8RlfHvmnsAYM4DtDSgpz_6WwhzjMveEu-YGGWi81nAV6dClLg';
+  const { emotion, email } = req.body;
+  const spotifyToken = 'BQBXxkSOYmWXdZTgezqGeU-u9KjHQske6xSehXRDXNkP6baU9I1O7ts35HEcqnuF2xrjWD7TgtGVSCEEhWOh4jCzpb_dj_UcpYnvP6aYL42-bN7Pg2qzlLE6rEtEAnMqdVHkwgOShOhYDkgR3298jx9a6bNFO-VS_ozsRdDB29ZRuxedR6aR1Ep1h4H0tpDvWbsFxLrE8cMwcX4K7XyHRXLtQ_G1lvXzDg';
   const moodMap = { happy: 'pop', sad: 'blues', angry: 'rock', neutral: 'chillout' };
   const genre = moodMap[emotion] || 'chillout';
 
-  console.log(`Searching Spotify with genre: ${genre}`);
   try {
-    const response = await axios.get('https://api.spotify.com/v1/search', {
-      headers: { 'Authorization': `Bearer ${spotifyToken}` },
-      params: { q: `genre:${genre}`, type: 'track', limit: 5, market: 'US' },
-    });
-    const tracks = response.data.tracks.items.map(track => ({
-      title: track.name,
-      artist: track.artists[0].name,
-      url: track.external_urls.spotify,
-    }));
+    const user = await User.findOne({ email });
+    let tracks = [];
+
+    // Basic personalization: Check history for past songs
+    if (user && user.history.length > 0) {
+      const pastRecs = user.history.filter(h => h.emotion === emotion);
+      if (pastRecs.length > 0) {
+        tracks = pastRecs[pastRecs.length - 1].songs.slice(0, 5); // Reuse last 5 songs
+      }
+    }
+
+    // If no history or fresh recs needed, hit Spotify
+    if (tracks.length === 0) {
+      console.log(`Searching Spotify with genre: ${genre}`);
+      const response = await axios.get('https://api.spotify.com/v1/search', {
+        headers: { 'Authorization': `Bearer ${spotifyToken}` },
+        params: { q: `genre:${genre}`, type: 'track', limit: 5, market: 'US' },
+      });
+      tracks = response.data.tracks.items.map(track => ({
+        title: track.name,
+        artist: track.artists[0].name,
+        url: track.external_urls.spotify,
+      }));
+
+      // Store in history
+      if (user) {
+        user.history.push({ emotion, songs: tracks, timestamp: new Date() });
+        await user.save();
+      }
+    }
+
     res.json({ tracks });
   } catch (error) {
     console.error('Spotify error:', {
@@ -137,6 +159,18 @@ app.post('/recommend', async (req, res) => {
       error: 'Failed to fetch tracks',
       details: error.response?.data || error.message,
     });
+  }
+});
+
+app.get('/history', async (req, res) => {
+  const { email } = req.query;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ history: user.history });
+  } catch (error) {
+    console.error('History error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch history' });
   }
 });
 
